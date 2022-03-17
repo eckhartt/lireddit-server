@@ -25,11 +25,14 @@
     "@mikro-orm/core": "^5.0.5",
     "@mikro-orm/migrations": "^5.0.5",
     "@mikro-orm/postgresql": "^5.0.5",
+    "@types/validator": "^13.7.1",
     "apollo-server-express": "^3.6.4",
+    "class-validator": "^0.13.2",
     "express": "^4.17.3",
     "graphql": "^15.3.0",
     "graphql-playground-middleware-express": "^1.7.23",
     "pg": "^8.7.3",
+    "reflect-metadata": "^0.1.13",
     "type-graphql": "^1.1.1"
   },
   "mikro-orm": {

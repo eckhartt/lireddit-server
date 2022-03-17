@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { MikroORM } from "@mikro-orm/core";
 import { __prod__ } from "./constants";
 // import { Post } from "./entities/Post";
@@ -8,6 +9,7 @@ import { ApolloServerPluginLandingPageDisabled } from "apollo-server-core";
 import { buildSchema } from "type-graphql";
 import { HelloResolver } from "./resolvers/hello";
 import expressPlayground from "graphql-playground-middleware-express";
+import { PostResolver } from "./resolvers/post";
 
 const main = async () => {
   const orm = await MikroORM.init(microConfig); // Connect to postgresql database
@@ -25,9 +27,10 @@ const main = async () => {
   const apolloServer = new ApolloServer({
     plugins: [ApolloServerPluginLandingPageDisabled()],
     schema: await buildSchema({
-      resolvers: [HelloResolver],
+      resolvers: [HelloResolver, PostResolver],
       validate: false,
     }),
+    context: () => ({ em: orm.em })
   }); // Initialize apollo server
 
   await apolloServer.start(); // Wait for apollo server to be initialized
@@ -41,5 +44,3 @@ const main = async () => {
 main().catch((err) => {
   console.log(err);
 }); // Catch errors and pass to console 
-
-console.log("Hello There");
