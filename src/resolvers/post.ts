@@ -22,7 +22,7 @@ export class PostResolver {
     const post = em.create(Post, { title });
     await em.persistAndFlush(post);
     return post;
-  }
+  } // Graphql mutation 'createPost' accepts a title arg and then em.create() a post entry
 
   @Mutation(() => Post)
   async updatePost(
@@ -39,5 +39,14 @@ export class PostResolver {
       await em.persistAndFlush(post);
     }
     return post;
-  }
+  } // Graphql mutation 'updatePost' accepts an id and title arg, checks if it can find the post with that id (else null) and then updates the post.title to the title provided
+
+  @Mutation(() => Boolean)
+  async deletePost(
+    @Arg("id") id: number,
+    @Ctx() { em }: MyContext
+  ): Promise<boolean> {
+    await em.nativeDelete(Post, { id });
+    return true;
+  } // Graphql mutation 'deletePost' accepts an id and then em.nativeDelete() the post entry where matching id
 }
