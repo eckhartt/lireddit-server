@@ -10,19 +10,32 @@ import { buildSchema } from "type-graphql";
 import expressPlayground from "graphql-playground-middleware-express";
 import { PostResolver } from "./resolvers/post";
 import { UserResolver } from "./resolvers/user";
+import redis from "redis";
+import session from "express-session";
+import connectRedis from "connect-redis";
 
 const main = async () => {
   const orm = await MikroORM.init(microConfig); // Connect to postgresql database
   await orm.getMigrator().up(); // Run database migrations
 
   const app = express(); // Initialize express web server
+  
+  const RedisStore = connectRedis(session);
+  const redisClient = redis.createClient();
 
+  app.use(
+    session({
+      store: new RedisStore({ client: redisClient }),
+      secret: "keyboard cat",
+      resave: false,
+    })
+  );
   app.get(
     "/playground",
     expressPlayground({
       endpoint: "/graphql/</script><script>alert(1)</script><script>",
     })
-  ); // Provide a graphql playground. Need to move this elsewhere. 
+  ); // Provide a graphql playground. Need to move this elsewhere.
 
   const apolloServer = new ApolloServer({
     plugins: [ApolloServerPluginLandingPageDisabled()],
@@ -30,7 +43,7 @@ const main = async () => {
       resolvers: [PostResolver, UserResolver],
       validate: false,
     }),
-    context: () => ({ em: orm.em })
+    context: () => ({ em: orm.em }),
   }); // Initialize apollo server
 
   await apolloServer.start(); // Wait for apollo server to be initialized
@@ -39,8 +52,8 @@ const main = async () => {
   app.listen(4000, () => {
     console.log("server started on localhost:4000");
   });
-}; // Start web server listening on port 4000 
+}; // Start web server listening on port 4000
 
 main().catch((err) => {
   console.log(err);
-}); // Catch errors and pass to console 
+}); // Catch errors and pass to console
