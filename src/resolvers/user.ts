@@ -72,7 +72,7 @@ export class UserResolver {
     });
     try {
       await em.persistAndFlush(user);
-    } catch (err) {
+    } catch (err: any) {
       if (err.code === "23505") { // Duplicate username error
         return {
           errors: [
@@ -86,6 +86,7 @@ export class UserResolver {
     }
     return { user };
   }
+
   @Mutation(() => UserResponse)
   async login(
     @Arg("options") options: UsernamePasswordInput,
