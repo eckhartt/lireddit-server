@@ -7,9 +7,9 @@ import express from "express";
 import { ApolloServer } from "apollo-server-express";
 import { ApolloServerPluginLandingPageDisabled } from "apollo-server-core";
 import { buildSchema } from "type-graphql";
-import { HelloResolver } from "./resolvers/hello";
 import expressPlayground from "graphql-playground-middleware-express";
 import { PostResolver } from "./resolvers/post";
+import { UserResolver } from "./resolvers/user";
 
 const main = async () => {
   const orm = await MikroORM.init(microConfig); // Connect to postgresql database
@@ -27,7 +27,7 @@ const main = async () => {
   const apolloServer = new ApolloServer({
     plugins: [ApolloServerPluginLandingPageDisabled()],
     schema: await buildSchema({
-      resolvers: [HelloResolver, PostResolver],
+      resolvers: [PostResolver, UserResolver],
       validate: false,
     }),
     context: () => ({ em: orm.em })
