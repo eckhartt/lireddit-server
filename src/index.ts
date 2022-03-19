@@ -13,23 +13,33 @@ import { UserResolver } from "./resolvers/user";
 import redis from "redis";
 import session from "express-session";
 import connectRedis from "connect-redis";
+import { __redisSecret__ } from "./redisSecret";
+import { MyContext } from "./types";
 
 const main = async () => {
   const orm = await MikroORM.init(microConfig); // Connect to postgresql database
   await orm.getMigrator().up(); // Run database migrations
 
   const app = express(); // Initialize express web server
-  
+
   const RedisStore = connectRedis(session);
   const redisClient = redis.createClient();
 
   app.use(
     session({
-      store: new RedisStore({ client: redisClient }),
-      secret: "keyboard cat",
+      name: "qid",
+      store: new RedisStore({ client: redisClient, disableTouch: true }),
+      cookie: {
+        maxAge: 1000 * 60 * 60 * 24 * 365 * 10, // 10 years
+        httpOnly: true,
+        sameSite: "lax", // csrf
+        secure: __prod__, // cookie only works in https
+      },
+      secret: __redisSecret__,
       resave: false,
     })
   );
+
   app.get(
     "/playground",
     expressPlayground({
@@ -43,7 +53,7 @@ const main = async () => {
       resolvers: [PostResolver, UserResolver],
       validate: false,
     }),
-    context: () => ({ em: orm.em }),
+    context: ({ req, res }): MyContext => ({ em: orm.em, req, res }),
   }); // Initialize apollo server
 
   await apolloServer.start(); // Wait for apollo server to be initialized
