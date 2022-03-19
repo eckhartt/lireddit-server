@@ -13,7 +13,7 @@ import { UserResolver } from "./resolvers/user";
 import redis from "redis";
 import session from "express-session";
 import connectRedis from "connect-redis";
-import { __redisSecret__ } from "./redisSecret";
+import { __redisSecret__ } from "./redisSecret"
 import { MyContext } from "./types";
 
 const main = async () => {
@@ -21,20 +21,21 @@ const main = async () => {
   await orm.getMigrator().up(); // Run database migrations
 
   const app = express(); // Initialize express web server
-
+  
   const RedisStore = connectRedis(session);
   const redisClient = redis.createClient();
 
   app.use(
     session({
-      name: "qid",
+      name: 'qid',
       store: new RedisStore({ client: redisClient, disableTouch: true }),
       cookie: {
         maxAge: 1000 * 60 * 60 * 24 * 365 * 10, // 10 years
         httpOnly: true,
-        sameSite: "lax", // csrf
-        secure: __prod__, // cookie only works in https
+        sameSite: 'lax', // csrf
+        secure: __prod__ // cookie only works in https
       },
+      saveUninitialized: false,
       secret: __redisSecret__,
       resave: false,
     })
