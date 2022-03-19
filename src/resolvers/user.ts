@@ -59,13 +59,13 @@ export class UserResolver {
         errors: [
           {
             field: "username",
-            message: "length must be greater than 2",
+            message: "length must be greater than 3",
           },
         ],
       };
     }
 
-    if (options.password.length <= 3) {
+    if (options.password.length <= 2) {
       return {
         errors: [
           {
@@ -98,7 +98,7 @@ export class UserResolver {
     }
 
     // store user id session
-    // this will set cookie on user & keep them logged in
+    // this will set cookie on user creation & keep them logged in
     req.session.userId = user.id
 
     return { user };
