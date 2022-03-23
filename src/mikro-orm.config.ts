@@ -4,7 +4,6 @@ import { MikroORM } from "@mikro-orm/core";
 import path from 'path';
 import { User } from "./entities/User";
 
-console.log("dirname is:",__dirname);
 
 export default {
   migrations: {
