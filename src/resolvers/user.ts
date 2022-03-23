@@ -1,5 +1,5 @@
 import { User } from "../entities/User";
-import { MyContext } from "src/types";
+import { MyContext } from "../types";
 import {
   Arg,
   Ctx,
@@ -12,6 +12,8 @@ import {
 } from "type-graphql";
 import argon2 from "argon2";
 import { EntityManager } from "@mikro-orm/postgresql";
+// import { COOKIE_NAME } from "src/constants";
+import { COOKIE_NAME } from "../constants"
 
 @InputType() // Create the type for our argument
 class UsernamePasswordInput {
@@ -154,5 +156,24 @@ export class UserResolver {
     return {
       user,
     };
+  }
+
+  // Logout mutation
+  // Creates promise to wait for the req.session.destroy callback to return
+  // confirming whether redis session has been destroyed and returns true where successful.
+  // Browser cookie is cleared whether session.destroy is successful or not
+  @Mutation(() => Boolean)
+  logout(@Ctx() { req, res }: MyContext) {
+    return new Promise((resolve) =>
+      req.session.destroy((err) => {
+        res.clearCookie(COOKIE_NAME);
+        if (err) {
+          console.log(err);
+          resolve(false);
+          return;
+        }
+        resolve(true);
+      })
+    );
   }
 }
