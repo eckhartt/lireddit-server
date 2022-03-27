@@ -11,9 +11,11 @@ import {
 } from "type-graphql";
 import argon2 from "argon2";
 import { EntityManager } from "@mikro-orm/postgresql";
-import { COOKIE_NAME } from "../constants";
+import { COOKIE_NAME, FORGET_PASSWORDS_PREFIX } from "../constants";
 import { UsernamePasswordInput } from "./UsernamePasswordInput";
 import { validateRegister } from "../utils/validateRegister";
+import { sendEmail } from "../utils/sendEmail";
+import { v4 } from "uuid";
 
 // Create type for error messages
 @ObjectType()
@@ -39,10 +41,33 @@ export class UserResolver {
   // Forgotten password mutation
   //
   //
-  // @Mutation(() => Boolean)
-  // forgotPassword(@Arg("email") email: string, @Ctx() { em }: MyContext) {
-  //   // const user = await em.findOne(User,{ email })
-  // }
+  @Mutation(() => Boolean)
+  async forgotPassword(
+    @Arg("email") email: string,
+    @Ctx() { em, redis }: MyContext
+  ) {
+    const user = await em.findOne(User, { email });
+    if (!user) {
+      // email not in db - returning true to prevent abuse
+      return true;
+    }
+
+    // Generate token with uuid
+    const token = v4();
+    // Store token in redis to expire after 3days
+    await redis.set(
+      FORGET_PASSWORDS_PREFIX + token,
+      user.id,
+      "EX",
+      1000 * 60 * 60 * 24 * 3
+    );
+    // Email user with reset password link
+    await sendEmail(
+      email,
+      `<a href="http://localhost:3000/change-password/${token}">reset password</a>`
+    );
+    return true;
+  }
 
   // Current user query
   //
