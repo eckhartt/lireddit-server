@@ -4,8 +4,7 @@ import { Field, ObjectType } from "type-graphql";
 @ObjectType()
 @Entity()
 export class User {
-
-  [OptionalProps]?: 'createdAt' | 'updatedAt' | 'password'; // Only 'username' and 'password' will be required for `em.create()`. id is an optional prop by default. 
+  [OptionalProps]?: "createdAt" | "updatedAt" | "password"; // Only 'username', 'email' and 'password' will be required for `em.create()`. id is an optional prop by default.
 
   @Field()
   @PrimaryKey({ type: "number" })
@@ -20,8 +19,12 @@ export class User {
   updatedAt = new Date();
 
   @Field()
-  @Property({ type: "text", unique:true })
+  @Property({ type: "text", unique: true })
   username!: string;
+
+  @Field()
+  @Property({ type: "text", unique: true })
+  email!: string;
 
   @Property({ type: "text" })
   password!: string;
