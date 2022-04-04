@@ -38,6 +38,60 @@ class UserResponse {
 
 @Resolver()
 export class UserResolver {
+  // Change password mutation
+  //
+  //
+  @Mutation(() => UserResponse)
+  async ChangePassword(
+    @Arg("token") token: string,
+    @Arg("newPassword") newPassword: string,
+    @Ctx() { redis, em, req }: MyContext
+  ): Promise<UserResponse> {
+    if (newPassword.length <= 2) {
+      return {
+        errors: [
+          {
+            field: "newPassword",
+            message: "length must be greater than 3",
+          },
+        ],
+      };
+    }
+    const userId = await redis.get(FORGET_PASSWORDS_PREFIX + token);
+
+    if (!userId) {
+      return {
+        errors: [
+          {
+            field: "token",
+            message: "token expired",
+          },
+        ],
+      };
+    }
+    // Redis stores values as strings, so we convert id to int
+    const user = await em.findOne(User, { id: parseInt(userId) });
+
+    if (!user) {
+      return {
+        errors: [
+          {
+            field: "token",
+            message: "user no longer exists",
+          },
+        ],
+      };
+    }
+    // Hash user password
+    user.password = await argon2.hash(newPassword);
+    // Push hashed password to database
+    await em.persistAndFlush(user);
+    // Log in user
+    req.session.userId = user.id;
+
+    return { user };
+  }
+
   // Forgotten password mutation
   //
   //
