@@ -1,6 +1,25 @@
 import { Post } from "../entities/Post";
 // import { MyContext } from "../types";
-import { Resolver, Query, Arg, Mutation } from "type-graphql";
+import {
+  Resolver,
+  Query,
+  Arg,
+  Mutation,
+  InputType,
+  Field,
+  Ctx,
+  UseMiddleware,
+} from "type-graphql";
+import { MyContext } from "../types";
+import { isAuth } from "../middleware/isAuth";
+
+@InputType()
+class PostInput {
+  @Field()
+  title!: string;
+  @Field()
+  text!: string;
+}
 
 @Resolver()
 export class PostResolver {
@@ -13,15 +32,20 @@ export class PostResolver {
   // Graphql query 'post' accepts an id arg and will return either null Or the result for matching id of type Post
   @Query(() => Post, { nullable: true })
   post(@Arg("id") id: number): Promise<Post | null> {
-    console.log(`id is`,id);
-    return Post.findOne({where: {id} });
+    return Post.findOne({ where: { id } });
   }
 
   // Graphql mutation 'createPost' accepts a title arg and then em.create() a post entry
   @Mutation(() => Post)
-  async createPost(@Arg("title") title: string): Promise<Post> {
-    // This performs 2 sql queries, one to create and one to select and return
-    return Post.create({ title }).save();
+  @UseMiddleware(isAuth)
+  async createPost(
+    @Arg("input") input: PostInput,
+    @Ctx() { req }: MyContext
+  ): Promise<Post> {
+    return Post.create({
+      ...input,
+      creatorId: req.session.userId,
+    }).save();
   }
 
   // Graphql mutation 'updatePost' accepts an id and title arg, checks if it can find the post with that id (else null) and then updates the post.title to the title provided
@@ -30,7 +54,7 @@ export class PostResolver {
     @Arg("id") id: number,
     @Arg("title", () => String, { nullable: true }) title: string
   ): Promise<Post | null> {
-    const post = await Post.findOne({where: {id}});
+    const post = await Post.findOne({ where: { id } });
     if (!post) {
       return null;
     }
