@@ -10,12 +10,12 @@ import {
   Resolver,
 } from "type-graphql";
 import argon2 from "argon2";
-import { EntityManager } from "@mikro-orm/postgresql";
 import { COOKIE_NAME, FORGET_PASSWORDS_PREFIX } from "../constants";
 import { UsernamePasswordInput } from "./UsernamePasswordInput";
 import { validateRegister } from "../utils/validateRegister";
 import { sendEmail } from "../utils/sendEmail";
 import { v4 } from "uuid";
+// import postgresDataSource from "../typeorm.config";
 
 // Create type for error messages
 @ObjectType()
@@ -45,7 +45,7 @@ export class UserResolver {
   async ChangePassword(
     @Arg("token") token: string,
     @Arg("newPassword") newPassword: string,
-    @Ctx() { redis, em, req }: MyContext
+    @Ctx() { redis, req }: MyContext
   ): Promise<UserResponse> {
     if (newPassword.length <= 2) {
       return {
@@ -72,7 +72,8 @@ export class UserResolver {
       };
     }
     // Redis stores values as strings, so we convert id to int
-    const user = await em.findOne(User, { id: parseInt(userId) });
+    const userIdInt = parseInt(userId);
+    const user = await User.findOne({ where: { id: userIdInt } });
 
     if (!user) {
       return {
@@ -85,9 +86,15 @@ export class UserResolver {
       };
     }
     // Hash user password
-    user.password = await argon2.hash(newPassword);
+    // user.password = await argon2.hash(newPassword);
     // Push hashed password to database
-    await em.persistAndFlush(user);
+    // await em.persistAndFlush(user);
+    await User.update(
+      { id: userIdInt },
+      {
+        password: await argon2.hash(newPassword),
+      }
+    );
     // Delete forgotten pasword token
     await redis.del(key);
     // Log in user
@@ -102,9 +109,9 @@ export class UserResolver {
   @Mutation(() => Boolean)
   async forgotPassword(
     @Arg("email") email: string,
-    @Ctx() { em, redis }: MyContext
+    @Ctx() { redis }: MyContext
   ) {
-    const user = await em.findOne(User, { email });
+    const user = await User.findOne({ where: { email } });
     if (!user) {
       // email not in db - returning true to prevent abuse
       return true;
@@ -131,13 +138,12 @@ export class UserResolver {
   //
   //
   @Query(() => User, { nullable: true })
-  async me(@Ctx() { req, em }: MyContext) {
+  me(@Ctx() { req }: MyContext) {
     // you are not logged in
     if (!req.session.userId) {
       return null;
     }
-    const user = await em.findOne(User, { id: req.session.userId });
-    return user;
+    return User.findOne({ where: { id: req.session.userId } });
   }
 
   // Register mutation
@@ -146,7 +152,7 @@ export class UserResolver {
   @Mutation(() => UserResponse)
   async register(
     @Arg("options") options: UsernamePasswordInput,
-    @Ctx() { em, req }: MyContext
+    @Ctx() { req }: MyContext
   ): Promise<UserResponse> {
     const errors = validateRegister(options);
     if (errors) {
@@ -157,21 +163,31 @@ export class UserResolver {
 
     let user;
     try {
-      const result = await (em as EntityManager)
-        .createQueryBuilder(User)
-        .getKnexQuery()
-        .insert({
-          username: options.username,
-          email: options.email,
-          password: hashedPassword,
-          created_at: new Date(),
-          updated_at: new Date(),
-        })
-        .returning("*");
-      user = result[0];
+      // Below is the longer query builder method
+      // const result = await postgresDataSource
+      //   .createQueryBuilder()
+      //   .insert()
+      //   .into(User)
+      //   .values({
+      //     username: options.username,
+      //     email: options.email,
+      //     password: hashedPassword,
+      //   })
+      //   .returning("*")
+      //   .execute();
+      // user = result.raw[0];
+
+      // Alternatively we could do User.create({ username:..., email:..}).save();
+      const result = await User.create({
+        username: options.username,
+        email: options.email,
+        password: hashedPassword,
+      }).save();
+
+      user = result;
     } catch (err: any) {
+      // Duplicate username error
       if (err.code === "23505") {
-        // Duplicate username error
         return {
           errors: [
             {
@@ -183,7 +199,10 @@ export class UserResolver {
       }
     }
 
-    req.session.userId = user.id; // store user id session
+    // store user id session
+    if (user) {
+      req.session.userId = user.id;
+    }
 
     return { user };
   }
@@ -196,13 +215,12 @@ export class UserResolver {
   async login(
     @Arg("usernameOrEmail") usernameOrEmail: string,
     @Arg("password") password: string,
-    @Ctx() { em, req }: MyContext
+    @Ctx() { req }: MyContext
   ): Promise<UserResponse> {
-    const user = await em.findOne(
-      User,
+    const user = await User.findOne(
       usernameOrEmail.includes("@")
-        ? { email: usernameOrEmail }
-        : { username: usernameOrEmail }
+        ? { where: { email: usernameOrEmail } }
+        : { where: { username: usernameOrEmail } }
     );
     if (!user) {
       return {

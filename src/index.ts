@@ -1,8 +1,8 @@
 import "reflect-metadata";
-import { MikroORM } from "@mikro-orm/core";
+// import { MikroORM } from "@mikro-orm/core";
 import { COOKIE_NAME, __prod__ } from "./constants";
 // import { Post } from "./entities/Post";
-import microConfig from "./mikro-orm.config";
+// import microConfig from "./mikro-orm.config";
 import express from "express";
 import { ApolloServer } from "apollo-server-express";
 import { ApolloServerPluginLandingPageDisabled } from "apollo-server-core";
@@ -16,12 +16,14 @@ import connectRedis from "connect-redis";
 import { __redisSecret__ } from "./redisSecret";
 // import { MyContext } from "./types";
 import cors from "cors";
+import postgresDataSource from "./typeorm.config";
 
 const main = async () => {
-  const orm = await MikroORM.init(microConfig); // Connect to postgresql database
-  await orm.getMigrator().up(); // Run database migrations
+  // Connect to postgres db via typeorm
+  await postgresDataSource.connect();
 
-  const app = express(); // Initialize express web server
+  // Initialize express web server
+  const app = express();
 
   const RedisStore = connectRedis(session);
   const redis = new Redis();
@@ -32,6 +34,7 @@ const main = async () => {
     })
   );
 
+  // Init express-session to connect to redis
   app.use(
     session({
       name: COOKIE_NAME,
@@ -45,33 +48,39 @@ const main = async () => {
       saveUninitialized: false,
       secret: __redisSecret__,
       resave: false,
-    }) // Init express-session to connect to redis
+    })
   );
 
+  // Provide a graphql playground. Need to move this elsewhere.
   app.get(
     "/playground",
     expressPlayground({
       endpoint: "/graphql/</script><script>alert(1)</script><script>",
     })
-  ); // Provide a graphql playground. Need to move this elsewhere.
+  );
 
+  // Create apollo server
   const apolloServer = new ApolloServer({
     plugins: [ApolloServerPluginLandingPageDisabled()],
     schema: await buildSchema({
       resolvers: [PostResolver, UserResolver],
       validate: false,
     }),
-    context: ({ req, res }) => ({ em: orm.em, req, res, redis }),
-  }); // Initialize apollo server
+    context: ({ req, res }) => ({ req, res, redis }),
+  });
 
-  await apolloServer.start(); // Wait for apollo server to be initialized
+  // Wait for apollo server to be initialized
+  await apolloServer.start();
+  // Apply apollo middleware
   apolloServer.applyMiddleware({ app, cors: false });
 
+  // Start web server listening on port 4000
   app.listen(4000, () => {
     console.log("server started on localhost:4000");
   });
-}; // Start web server listening on port 4000
+};
 
+// Catch errors and pass to console
 main().catch((err) => {
   console.log(err);
-}); // Catch errors and pass to console
+});
