@@ -3,6 +3,7 @@ import {
   Ctx,
   Field,
   InputType,
+  Int,
   Mutation,
   Query,
   Resolver,
@@ -29,7 +30,7 @@ export class PostResolver {
   // All posts before the cursor position, within the limit, are returned in createdAt descending order.
   @Query(() => [Post])
   async posts(
-    @Arg("limit") limit: number,
+    @Arg("limit", () => Int) limit: number,
     @Arg("cursor", () => String, { nullable: true }) cursor: string | null // This will be the datestamp the post was created
   ): Promise<Post[]> {
     // Check if limit provided is less than 50. If not, cap it at 50 results.
