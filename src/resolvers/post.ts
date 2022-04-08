@@ -2,11 +2,13 @@ import {
   Arg,
   Ctx,
   Field,
+  FieldResolver,
   InputType,
   Int,
   Mutation,
   Query,
   Resolver,
+  Root,
   UseMiddleware,
 } from "type-graphql";
 import { Post } from "../entities/Post";
@@ -23,8 +25,18 @@ class PostInput {
   text!: string;
 }
 
-@Resolver()
+@Resolver(Post)
 export class PostResolver {
+
+  // textSnippet - provides graphql access to the first 50 characters of the text field on post
+  @FieldResolver(() => String)
+  textSnippet(
+    @Root() root: Post
+  ) {
+    return root.text.slice(0,50);
+  }
+
+
   // QUERY all posts
   // Requires a limit (capped to 50). Accepts a cursor position using the datestamp of the post.
   // All posts before the cursor position, within the limit, are returned in createdAt descending order.
