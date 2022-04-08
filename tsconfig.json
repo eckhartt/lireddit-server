@@ -26,5 +26,6 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "allowJs": true,
-  }
+  },
+  // "include": []
 }

@@ -1,26 +1,22 @@
-import "reflect-metadata";
-// import { MikroORM } from "@mikro-orm/core";
-import { COOKIE_NAME, __prod__ } from "./constants";
-// import { Post } from "./entities/Post";
-// import microConfig from "./mikro-orm.config";
-import express from "express";
-import { ApolloServer } from "apollo-server-express";
 import { ApolloServerPluginLandingPageDisabled } from "apollo-server-core";
-import { buildSchema } from "type-graphql";
+import { ApolloServer } from "apollo-server-express";
+import connectRedis from "connect-redis";
+import cors from "cors";
+import express from "express";
+import session from "express-session";
 import expressPlayground from "graphql-playground-middleware-express";
+import Redis from "ioredis";
+import "reflect-metadata";
+import { buildSchema } from "type-graphql";
+import { COOKIE_NAME, __prod__ } from "./constants";
+import { __redisSecret__ } from "./redisSecret";
 import { PostResolver } from "./resolvers/post";
 import { UserResolver } from "./resolvers/user";
-import Redis from "ioredis";
-import session from "express-session";
-import connectRedis from "connect-redis";
-import { __redisSecret__ } from "./redisSecret";
-// import { MyContext } from "./types";
-import cors from "cors";
 import postgresDataSource from "./typeorm.config";
 
 const main = async () => {
   // Connect to postgres db via typeorm
-  await postgresDataSource.connect();
+  await postgresDataSource.initialize();
 
   // Initialize express web server
   const app = express();
