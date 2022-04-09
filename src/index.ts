@@ -9,6 +9,7 @@ import Redis from "ioredis";
 import "reflect-metadata";
 import { buildSchema } from "type-graphql";
 import { COOKIE_NAME, __prod__ } from "./constants";
+// import { Post } from "./entities/Post";
 import { __redisSecret__ } from "./redisSecret";
 import { PostResolver } from "./resolvers/post";
 import { UserResolver } from "./resolvers/user";
@@ -17,6 +18,9 @@ import postgresDataSource from "./typeorm.config";
 const main = async () => {
   // Connect to postgres db via typeorm
   await postgresDataSource.initialize();
+
+  // await Post.delete({}); // Uncomment this to delete the post table in postgres
+  // await postgresDataSource.runMigrations(); // Uncomment this to perform postgres data migrations
 
   // Initialize express web server
   const app = express();
