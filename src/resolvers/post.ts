@@ -6,6 +6,7 @@ import {
   InputType,
   Int,
   Mutation,
+  ObjectType,
   Query,
   Resolver,
   Root,
@@ -16,7 +17,7 @@ import { isAuth } from "../middleware/isAuth";
 import postgresDataSource from "../typeorm.config";
 import { MyContext } from "../types";
 
-// Define fields we expect in type PostInput
+// Define fields we expect in input field PostInput
 @InputType()
 class PostInput {
   @Field()
@@ -25,40 +26,85 @@ class PostInput {
   text!: string;
 }
 
+// Define fields we expect in object PaginatedPosts
+@ObjectType()
+class PaginatedPosts {
+  @Field(() => [Post])
+  posts!: Post[];
+  @Field()
+  hasMore!: boolean;
+}
+
 @Resolver(Post)
 export class PostResolver {
-
   // textSnippet - provides graphql access to the first 50 characters of the text field on post
+  //
+  //
   @FieldResolver(() => String)
-  textSnippet(
-    @Root() root: Post
-  ) {
-    return root.text.slice(0,50);
+  textSnippet(@Root() post: Post) {
+    return post.text.slice(0, 50);
   }
-
 
   // QUERY all posts
   // Requires a limit (capped to 50). Accepts a cursor position using the datestamp of the post.
   // All posts before the cursor position, within the limit, are returned in createdAt descending order.
-  @Query(() => [Post])
+  @Query(() => PaginatedPosts)
   async posts(
     @Arg("limit", () => Int) limit: number,
     @Arg("cursor", () => String, { nullable: true }) cursor: string | null // This will be the datestamp the post was created
-  ): Promise<Post[]> {
+  ): Promise<PaginatedPosts> {
     // Check if limit provided is less than 50. If not, cap it at 50 results.
     const realLimit = Math.min(50, limit);
-    // Connect to postgres via typeorm and create a querybuilder
-    const qb = postgresDataSource
-      .getRepository(Post)
-      .createQueryBuilder("p")
-      .orderBy('"createdAt"', "DESC")
-      .take(realLimit);
-    // If cursor value is not null, modify query to pull posts that were created before that date
+    //  +1 to enable us to check if there are more results available
+    const realLimitPlusOne = realLimit + 1;
+
+    // If cursor value is not null, modify query to filter posts that were created before that date value
+    const replacements: any[] = [realLimitPlusOne];
     if (cursor) {
-      qb.where('"createdAt" < :cursor', { cursor: new Date(parseInt(cursor)) });
+      replacements.push(new Date(parseInt(cursor)));
     }
+
+    // Connect to postgres via typeorm and create a query
+    const posts = await postgresDataSource.query(
+      `
+      select p.*,
+      json_build_object(
+        'id', u.id,
+        'username', u.username,
+        'email', u.email,
+        'createdAt', u."createdAt",
+        'updatedAt',u."updatedAt"
+        ) creator
+      from post p
+      inner join public.user u on u.id = p."creatorId"
+      ${cursor ? `where p."createdAt" < $2` : ""}
+      order by p."createdAt" DESC
+      limit $1
+      `,
+      replacements
+    );
+
+    // Connect to postgres via typeorm and create a querybuilder
+    // const qb = postgresDataSource
+    //   .getRepository(Post)
+    //   .createQueryBuilder("p")
+    //   .innerJoinAndSelect("p.creator", "u", 'u.id = p."creatorId"')
+    //   .orderBy('"createdAt"', "DESC")
+    //   .take(realLimitPlusOne);
+
+    // If cursor value is not null, modify query to pull posts that were created before that date value
+    // if (cursor) {
+    //   qb.where('"createdAt" < :cursor', { cursor: new Date(parseInt(cursor)) });
+    // }
+
     // Finish query and return results
-    return qb.getMany();
+    // const posts = await qb.getMany();
+    return {
+      // slice results so user recieves the requested number of posts
+      posts: posts.slice(0, realLimit),
+      // If there are more results available, passes true
+      hasMore: posts.length === realLimitPlusOne,
+    };
   }
 
   // Graphql query 'post' accepts an id arg and will return either null Or the result for matching id of type Post
