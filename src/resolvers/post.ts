@@ -10,7 +10,7 @@ import {
   Query,
   Resolver,
   Root,
-  UseMiddleware,
+  UseMiddleware
 } from "type-graphql";
 import { Post } from "../entities/Post";
 import { isAuth } from "../middleware/isAuth";
@@ -43,6 +43,41 @@ export class PostResolver {
   @FieldResolver(() => String)
   textSnippet(@Root() post: Post) {
     return post.text.slice(0, 50);
+  }
+
+  // Post voting
+  //
+  //
+  @Mutation(() => Boolean)
+  @UseMiddleware(isAuth)
+  async vote(
+    @Arg("postId", () => Int) postId: number,
+    @Arg("value", () => Int) value: number,
+    @Ctx()
+    { req }: MyContext
+  ) {
+    // If value is anything but -1, we consider it an updoot. Prevents malicious data
+    const isUpdoot = value !== -1;
+    // If isUpdoot is true, pass 1. Otherwise -1.
+    const realValue = isUpdoot ? 1 : -1;
+    // Grab userId from session
+    const { userId } = req.session;
+    // Update join and post table
+    await postgresDataSource.query(
+      `
+    START TRANSACTION;
+
+    insert into updoot ("userId", "postId", value)
+    values (${userId},${postId},${realValue});
+
+    update post
+    set points = points + ${realValue}
+    where id = ${postId};
+
+    COMMIT;
+    `
+    );
+    return true;
   }
 
   // QUERY all posts
