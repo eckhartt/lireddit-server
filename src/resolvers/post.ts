@@ -1,3 +1,4 @@
+import { Updoot } from "../entities/Updoot";
 import {
   Arg,
   Ctx,
@@ -10,7 +11,7 @@ import {
   Query,
   Resolver,
   Root,
-  UseMiddleware
+  UseMiddleware,
 } from "type-graphql";
 import { Post } from "../entities/Post";
 import { isAuth } from "../middleware/isAuth";
@@ -62,21 +63,49 @@ export class PostResolver {
     const realValue = isUpdoot ? 1 : -1;
     // Grab userId from session
     const { userId } = req.session;
-    // Update join and post table
-    await postgresDataSource.query(
-      `
-    START TRANSACTION;
+    // Checking if user has already voted on postId yet (and is thus on Updoot table)
+    const updoot = await Updoot.findOne({ where: { postId, userId } });
 
-    insert into updoot ("userId", "postId", value)
-    values (${userId},${postId},${realValue});
-
+    // if the user has voted on the post before and they are changing their vote
+    if (updoot && updoot.value !== realValue) {
+      await postgresDataSource.transaction(async (tm) => {
+        await tm.query(
+          `
+    update updoot
+    set value = $1
+    where "postId" = $2 and "userId" = $3
+          `,
+          [realValue, postId, userId]
+        );
+        await tm.query(
+          `
     update post
-    set points = points + ${realValue}
-    where id = ${postId};
-
-    COMMIT;
-    `
-    );
+    set points = points + $1
+    where id = $2
+          `,
+          [2 * realValue, postId]
+        );
+      });
+    } else if (!updoot) {
+      // else if user has never voted before
+      await postgresDataSource.transaction(async (tm) => {
+        await tm.query(
+          `
+    insert into updoot ("userId", "postId", value)
+    values ($1, $2, $3);
+          `,
+          [userId, postId, realValue]
+        );
+        await tm.query(
+          `
+    update post
+    set points = points + $1
+    where id = $2
+        `,
+          [realValue, postId]
+        );
+      });
+    }
     return true;
   }
 
