@@ -115,7 +115,8 @@ export class PostResolver {
   @Query(() => PaginatedPosts)
   async posts(
     @Arg("limit", () => Int) limit: number,
-    @Arg("cursor", () => String, { nullable: true }) cursor: string | null // This will be the datestamp the post was created
+    @Arg("cursor", () => String, { nullable: true }) cursor: string | null, // This will be the datestamp the post was created
+    @Ctx() { req }: MyContext
   ): Promise<PaginatedPosts> {
     // Check if limit provided is less than 50. If not, cap it at 50 results.
     const realLimit = Math.min(50, limit);
@@ -123,9 +124,18 @@ export class PostResolver {
     const realLimitPlusOne = realLimit + 1;
 
     // If cursor value is not null, modify query to filter posts that were created before that date value
-    const replacements: any[] = [realLimitPlusOne];
+    const replacements: any[] = [realLimitPlusOne]; //, req.session.userId];
+    //
+    // REVIEW NEXT IF STATEMENT - after fixing SSR cookie, DOES this need to be conditional?
+    //
+    if (req.session.userId) {
+      replacements.push(req.session.userId);
+    }
+
+    let cursorIndex = 3;
     if (cursor) {
       replacements.push(new Date(parseInt(cursor)));
+      cursorIndex = replacements.length;
     }
 
     // Connect to postgres via typeorm and create a query
@@ -137,11 +147,16 @@ export class PostResolver {
         'username', u.username,
         'email', u.email,
         'createdAt', u."createdAt",
-        'updatedAt',u."updatedAt"
-        ) creator
+        'updatedAt', u."updatedAt"
+        ) creator,
+      ${
+        req.session.userId
+          ? '(select value from updoot where "userId" = $2 and "postId" = p.id) "voteStatus"'
+          : 'null as "voteStatus"'
+      }
       from post p
       inner join public.user u on u.id = p."creatorId"
-      ${cursor ? `where p."createdAt" < $2` : ""}
+      ${cursor ? `where p."createdAt" < $${cursorIndex}` : ""}
       order by p."createdAt" DESC
       limit $1
       `,
