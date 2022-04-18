@@ -17,6 +17,7 @@ import { Post } from "../entities/Post";
 import { isAuth } from "../middleware/isAuth";
 import postgresDataSource from "../typeorm.config";
 import { MyContext } from "../types";
+import { User } from "../entities/User";
 
 // Define fields we expect in input field PostInput
 @InputType()
@@ -38,6 +39,14 @@ class PaginatedPosts {
 
 @Resolver(Post)
 export class PostResolver {
+  // creator - provides graphql access to know who a user is by the creatorId on each post
+  //
+  //
+  @FieldResolver(() => User)
+  creator(@Root() post: Post) {
+    return User.findOne({ where: { id: post.creatorId } });
+  }
+
   // textSnippet - provides graphql access to the first 50 characters of the text field on post
   //
   //
@@ -125,13 +134,11 @@ export class PostResolver {
 
     // If cursor value is not null, modify query to filter posts that were created before that date value
     const replacements: any[] = [realLimitPlusOne]; //, req.session.userId];
-    //
-    // REVIEW NEXT IF STATEMENT - after fixing SSR cookie, DOES this need to be conditional?
-    //
+    // userId exists in session, add it to replacements array
     if (req.session.userId) {
       replacements.push(req.session.userId);
     }
-
+    // if cursor has been passed in, add it to replacements array
     let cursorIndex = 3;
     if (cursor) {
       replacements.push(new Date(parseInt(cursor)));
@@ -142,20 +149,12 @@ export class PostResolver {
     const posts = await postgresDataSource.query(
       `
       select p.*,
-      json_build_object(
-        'id', u.id,
-        'username', u.username,
-        'email', u.email,
-        'createdAt', u."createdAt",
-        'updatedAt', u."updatedAt"
-        ) creator,
       ${
         req.session.userId
           ? '(select value from updoot where "userId" = $2 and "postId" = p.id) "voteStatus"'
           : 'null as "voteStatus"'
       }
       from post p
-      inner join public.user u on u.id = p."creatorId"
       ${cursor ? `where p."createdAt" < $${cursorIndex}` : ""}
       order by p."createdAt" DESC
       limit $1
@@ -191,7 +190,8 @@ export class PostResolver {
   //
   @Query(() => Post, { nullable: true })
   post(@Arg("id", () => Int) id: number): Promise<Post | null> {
-    return Post.findOne({ where: { id }, relations: ["creator"] });
+    // TODO: Extend to acquire vote status for single page voting view
+    return Post.findOne({ where: { id } });
   }
 
   // Graphql mutation 'createPost' accepts a title arg and then em.create() a post entry
