@@ -187,11 +187,11 @@ export class PostResolver {
   }
 
   // Graphql query 'post' accepts an id arg and will return either null Or the result for matching id of type Post
-  //
+  // relations creates a join in the sql request
   //
   @Query(() => Post, { nullable: true })
-  post(@Arg("id") id: number): Promise<Post | null> {
-    return Post.findOne({ where: { id } });
+  post(@Arg("id", () => Int) id: number): Promise<Post | null> {
+    return Post.findOne({ where: { id }, relations: ["creator"] });
   }
 
   // Graphql mutation 'createPost' accepts a title arg and then em.create() a post entry
@@ -213,26 +213,38 @@ export class PostResolver {
   //
   //
   @Mutation(() => Post, { nullable: true })
+  @UseMiddleware(isAuth)
   async updatePost(
-    @Arg("id") id: number,
-    @Arg("title", () => String, { nullable: true }) title: string
+    @Arg("id", () => Int) id: number,
+    @Arg("title") title: string,
+    @Arg("text") text: string,
+    @Ctx() { req }: MyContext
   ): Promise<Post | null> {
-    const post = await Post.findOne({ where: { id } });
-    if (!post) {
-      return null;
-    }
-    if (typeof title !== "undefined") {
-      await Post.update({ id }, { title });
-    }
-    return post;
+    const result = await postgresDataSource
+      .createQueryBuilder()
+      .update(Post)
+      .set({ title, text })
+      .where('id = :id and "creatorId" = :creatorId', {
+        id,
+        creatorId: req.session.userId,
+      })
+      .returning("*")
+      .execute();
+
+    return result.raw[0];
   }
 
   // Graphql mutation 'deletePost' accepts an id and then em.nativeDelete() the post entry where matching id
   //
   //
   @Mutation(() => Boolean)
-  async deletePost(@Arg("id") id: number): Promise<boolean> {
-    await Post.delete(id);
+  @UseMiddleware(isAuth)
+  async deletePost(
+    @Arg("id", () => Int) id: number,
+    @Ctx() { req }: MyContext
+  ): Promise<boolean> {
+    // Delete entry from Post table if user is creator
+    await Post.delete({ id, creatorId: req.session.userId });
     return true;
   }
 }
