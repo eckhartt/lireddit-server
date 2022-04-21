@@ -14,6 +14,7 @@ import { __redisSecret__ } from "./redisSecret";
 import { PostResolver } from "./resolvers/post";
 import { UserResolver } from "./resolvers/user";
 import postgresDataSource from "./typeorm.config";
+import { createUserLoader } from "./utils/createUserLoader";
 
 const main = async () => {
   // Connect to postgres db via typeorm
@@ -66,7 +67,14 @@ const main = async () => {
       resolvers: [PostResolver, UserResolver],
       validate: false,
     }),
-    context: ({ req, res }) => ({ req, res, redis }),
+    // context is ran on every request
+    context: ({ req, res }) => ({
+      req,
+      res,
+      redis,
+      // userLoader batches and caches the loading of users within a single request
+      userLoader: createUserLoader(),
+    }),
   });
 
   // Wait for apollo server to be initialized

@@ -43,8 +43,9 @@ export class PostResolver {
   //
   //
   @FieldResolver(() => User)
-  creator(@Root() post: Post) {
-    return User.findOne({ where: { id: post.creatorId } });
+  creator(@Root() post: Post, @Ctx() { userLoader }: MyContext) {
+    return userLoader.load(post.creatorId);
+    // return User.findOne({ where: { id: post.creatorId } });
   }
 
   // textSnippet - provides graphql access to the first 50 characters of the text field on post
