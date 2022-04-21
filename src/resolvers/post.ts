@@ -40,8 +40,8 @@ class PaginatedPosts {
 @Resolver(Post)
 export class PostResolver {
   // creator - provides graphql access to know who a user is by the creatorId on each post
-  //
-  //
+  // userLoader accepts an array of creatorId numbers
+  // Returns promise of a User object
   @FieldResolver(() => User)
   creator(@Root() post: Post, @Ctx() { userLoader }: MyContext) {
     return userLoader.load(post.creatorId);
@@ -54,6 +54,26 @@ export class PostResolver {
   @FieldResolver(() => String)
   textSnippet(@Root() post: Post) {
     return post.text.slice(0, 50);
+  }
+
+  // vote status
+  //
+  // Returns promise of either a number value or null for each Post it resolves 
+  @FieldResolver(() => Int, { nullable: true })
+  async voteStatus(
+    @Root() post: Post,
+    @Ctx() { updootLoader, req }: MyContext
+  ) {
+    if (!req.session.userId) {
+      return null;
+    }
+
+    const updoot = await updootLoader.load({
+      postId: post.id,
+      userId: req.session.userId,
+    });
+
+    return updoot ? updoot.value : null;
   }
 
   // Post voting
@@ -133,30 +153,20 @@ export class PostResolver {
     //  +1 to enable us to check if there are more results available
     const realLimitPlusOne = realLimit + 1;
 
-    // If cursor value is not null, modify query to filter posts that were created before that date value
+    // Setting up sql replacements
     const replacements: any[] = [realLimitPlusOne]; //, req.session.userId];
-    // userId exists in session, add it to replacements array
-    if (req.session.userId) {
-      replacements.push(req.session.userId);
-    }
+
     // if cursor has been passed in, add it to replacements array
-    let cursorIndex = 3;
     if (cursor) {
       replacements.push(new Date(parseInt(cursor)));
-      cursorIndex = replacements.length;
     }
 
     // Connect to postgres via typeorm and create a query
     const posts = await postgresDataSource.query(
       `
-      select p.*,
-      ${
-        req.session.userId
-          ? '(select value from updoot where "userId" = $2 and "postId" = p.id) "voteStatus"'
-          : 'null as "voteStatus"'
-      }
+      select p.*
       from post p
-      ${cursor ? `where p."createdAt" < $${cursorIndex}` : ""}
+      ${cursor ? `where p."createdAt" < $2` : ""}
       order by p."createdAt" DESC
       limit $1
       `,

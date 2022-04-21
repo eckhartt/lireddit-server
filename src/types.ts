@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 //@ts-ignore
 import { Session } from "express-session";
 import Redis from "ioredis";
+import { createUpdootLoader } from "./utils/createUpdootLoader";
 import { createUserLoader } from "./utils/createUserLoader";
 
 export type MyContext = {
@@ -12,6 +13,7 @@ export type MyContext = {
   res: Response;
   // ReturnType gives the returned value of a function
   userLoader: ReturnType<typeof createUserLoader>;
+  updootLoader: ReturnType<typeof createUpdootLoader>;
 };
 
 declare module "express-session" {

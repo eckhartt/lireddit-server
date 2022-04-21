@@ -14,6 +14,7 @@ import { __redisSecret__ } from "./redisSecret";
 import { PostResolver } from "./resolvers/post";
 import { UserResolver } from "./resolvers/user";
 import postgresDataSource from "./typeorm.config";
+import { createUpdootLoader } from "./utils/createUpdootLoader";
 import { createUserLoader } from "./utils/createUserLoader";
 
 const main = async () => {
@@ -74,6 +75,7 @@ const main = async () => {
       redis,
       // userLoader batches and caches the loading of users within a single request
       userLoader: createUserLoader(),
+      updootLoader: createUpdootLoader(),
     }),
   });
 
